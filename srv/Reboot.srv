@@ -1,0 +1,5 @@
+# Reboot a servo
+uint8 servo_id        # Servo ID (0~253, NOT broadcast)
+---
+bool success
+string message

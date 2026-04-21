@@ -1,0 +1,5 @@
+# Clear servo error status
+uint8 servo_id        # Servo ID (0~253, 254=broadcast)
+---
+bool success
+string message

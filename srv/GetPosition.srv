@@ -1,0 +1,7 @@
+# Get servo current position and angle
+uint8 servo_id        # Servo ID (0~253)
+---
+bool success
+string message
+int32 position        # Current position (0~1023)
+float32 angle         # Current angle in degrees (-160.0 ~ 160.0)

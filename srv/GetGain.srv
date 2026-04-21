@@ -1,0 +1,22 @@
+# Get PID gain values from a servo
+uint8 servo_id          # Servo ID (0~253)
+
+# Memory type to read from
+uint8 MEMORY_RAM=0      # RAM (current active values)
+uint8 MEMORY_EEP=1      # EEP/ROM (stored permanent values)
+uint8 memory_type       # 0=RAM, 1=EEP
+---
+bool success
+string message
+
+# Position PID Gains (0~32767)
+int32 kp                # Proportional gain
+int32 kd                # Derivative gain
+int32 ki                # Integral gain
+int32 feedforward1      # Position feedforward 1st gain
+int32 feedforward2      # Position feedforward 2nd gain
+
+# Velocity Gains (DRS-0x02 series only: DRS-0102, DRS-0402, DRS-0602)
+# Returns -1 if not supported by the current model
+int32 velocity_kp       # Velocity P gain (actual = value/64)
+int32 velocity_ki       # Velocity I gain (actual = value/16384)

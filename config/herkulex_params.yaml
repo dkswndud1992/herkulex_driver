@@ -1,0 +1,22 @@
+# HerkuleX Driver Parameters
+herkulex_driver:
+  ros__parameters:
+    # Serial port device path
+    serial_port: "/dev/ttyUSB0"
+
+    # Baud rate (common: 57600 for UNO, 115200 for Mega/Linux)
+    baud_rate: 115200
+
+    # Servo model: "0101", "0201", "0102", "0401", "0402", "0601", "0602"
+    # or "DRS-0101", "DRS-0201", etc.
+    # DRS-0x02 series (0102, 0402, 0602) support additional velocity gains
+    model: "0101"
+
+    # List of servo IDs to monitor (publish status)
+    servo_ids: [0, 1]
+
+    # Status publishing rate in Hz (0 to disable)
+    status_rate: 10.0
+
+    # Auto-initialize servos on startup (clear error + torque ON)
+    auto_initialize: true

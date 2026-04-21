@@ -1,0 +1,8 @@
+# Set servo continuous rotation speed
+uint8 servo_id        # Servo ID (0~253, 254=broadcast)
+int32 goal_speed      # Goal speed (-1023 ~ 1023)
+int32 playtime_ms     # Execution time in milliseconds (0~2856)
+uint8 led_color       # LED color (0=off, 1=green, 2=blue, 3=red)
+---
+bool success
+string message

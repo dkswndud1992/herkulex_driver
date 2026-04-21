@@ -1,0 +1,6 @@
+# Change servo ID (requires reboot to take effect)
+uint8 old_id          # Current servo ID
+uint8 new_id          # New servo ID
+---
+bool success
+string message

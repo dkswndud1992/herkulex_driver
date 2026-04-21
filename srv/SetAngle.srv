@@ -1,0 +1,8 @@
+# Move servo to a goal angle
+uint8 servo_id        # Servo ID (0~253, 254=broadcast)
+float32 goal_angle    # Goal angle in degrees (-160.0 ~ 160.0)
+int32 playtime_ms     # Execution time in milliseconds (0~2856)
+uint8 led_color       # LED color (0=off, 1=green, 2=blue, 3=red)
+---
+bool success
+string message

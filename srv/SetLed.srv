@@ -1,0 +1,6 @@
+# Set servo LED color
+uint8 servo_id        # Servo ID (0~253, 254=broadcast)
+uint8 led_color       # LED color (0=off, 1=green, 2=blue, 3=cyan, 4=red, 5=green2, 6=pink, 7=white)
+---
+bool success
+string message

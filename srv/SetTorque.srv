@@ -1,0 +1,6 @@
+# Set servo torque on/off
+uint8 servo_id        # Servo ID (0~253, 254=broadcast)
+bool torque_on        # true=torque ON, false=torque OFF (free)
+---
+bool success
+string message
