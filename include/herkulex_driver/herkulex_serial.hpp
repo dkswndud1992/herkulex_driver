@@ -73,17 +73,17 @@ inline const ModelSpec & getModelSpec(HerkulexModel model)
   return specs.at(HerkulexModel::DRS_0101);
 }
 
-/// Parse a model string (e.g. "0101", "DRS-0402") to HerkulexModel enum
+/// Parse a model string (e.g. "0101", "DRS-0402", "0602", "602") to HerkulexModel enum
 inline HerkulexModel parseModelString(const std::string & model_str)
 {
   static const std::map<std::string, HerkulexModel> model_map = {
-    { "0101", HerkulexModel::DRS_0101 }, { "DRS-0101", HerkulexModel::DRS_0101 },
-    { "0201", HerkulexModel::DRS_0201 }, { "DRS-0201", HerkulexModel::DRS_0201 },
-    { "0102", HerkulexModel::DRS_0102 }, { "DRS-0102", HerkulexModel::DRS_0102 },
-    { "0401", HerkulexModel::DRS_0401 }, { "DRS-0401", HerkulexModel::DRS_0401 },
-    { "0402", HerkulexModel::DRS_0402 }, { "DRS-0402", HerkulexModel::DRS_0402 },
-    { "0601", HerkulexModel::DRS_0601 }, { "DRS-0601", HerkulexModel::DRS_0601 },
-    { "0602", HerkulexModel::DRS_0602 }, { "DRS-0602", HerkulexModel::DRS_0602 },
+    { "0101", HerkulexModel::DRS_0101 }, { "DRS-0101", HerkulexModel::DRS_0101 }, { "101", HerkulexModel::DRS_0101 },
+    { "0201", HerkulexModel::DRS_0201 }, { "DRS-0201", HerkulexModel::DRS_0201 }, { "201", HerkulexModel::DRS_0201 },
+    { "0102", HerkulexModel::DRS_0102 }, { "DRS-0102", HerkulexModel::DRS_0102 }, { "102", HerkulexModel::DRS_0102 },
+    { "0401", HerkulexModel::DRS_0401 }, { "DRS-0401", HerkulexModel::DRS_0401 }, { "401", HerkulexModel::DRS_0401 },
+    { "0402", HerkulexModel::DRS_0402 }, { "DRS-0402", HerkulexModel::DRS_0402 }, { "402", HerkulexModel::DRS_0402 },
+    { "0601", HerkulexModel::DRS_0601 }, { "DRS-0601", HerkulexModel::DRS_0601 }, { "601", HerkulexModel::DRS_0601 },
+    { "0602", HerkulexModel::DRS_0602 }, { "DRS-0602", HerkulexModel::DRS_0602 }, { "602", HerkulexModel::DRS_0602 },
   };
 
   auto it = model_map.find(model_str);

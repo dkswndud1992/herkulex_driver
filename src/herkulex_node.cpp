@@ -19,16 +19,42 @@ HerkulexNode::HerkulexNode(const rclcpp::NodeOptions & options)
   // ─── Declare parameters ──────────────────────────────────────
   this->declare_parameter<std::string>("serial_port", "/dev/ttyUSB0");
   this->declare_parameter<int>("baud_rate", 115200);
-  this->declare_parameter<std::string>("model", "0101");
+
+  rcl_interfaces::msg::ParameterDescriptor model_desc;
+  model_desc.description = "Default HerkuleX servo model (e.g. '0602', 'DRS-0602', or 602)";
+  model_desc.dynamic_typing = true;
+  this->declare_parameter("model", rclcpp::ParameterValue("0602"), model_desc);
+
   this->declare_parameter<std::vector<int64_t>>("servo_ids", {0});
   this->declare_parameter<double>("status_rate", 10.0);
   this->declare_parameter<bool>("auto_initialize", true);
 
-  this->declare_parameter<std::vector<std::string>>("servo_models", std::vector<std::string>{});
+  rcl_interfaces::msg::ParameterDescriptor servo_models_desc;
+  servo_models_desc.description = "Per-servo model overrides (e.g. ['1:0602', '2:0602', '3:0201'])";
+  servo_models_desc.dynamic_typing = true;
+  this->declare_parameter("servo_models", rclcpp::ParameterValue(std::vector<std::string>{}), servo_models_desc);
 
   serial_port_ = this->get_parameter("serial_port").as_string();
   baud_rate_ = this->get_parameter("baud_rate").as_int();
-  model_name_ = this->get_parameter("model").as_string();
+
+  // Model parameter: robustly handle both string ("0602") and integer (602) from YAML/CLI
+  auto model_param = this->get_parameter("model");
+  if (model_param.get_type() == rclcpp::ParameterType::PARAMETER_INTEGER) {
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%04ld", model_param.as_int());
+    model_name_ = buf;
+  } else if (model_param.get_type() == rclcpp::ParameterType::PARAMETER_STRING) {
+    model_name_ = model_param.as_string();
+  } else if (model_param.get_type() == rclcpp::ParameterType::PARAMETER_STRING_ARRAY) {
+    auto list = model_param.as_string_array();
+    if (!list.empty()) {
+      auto sep = list[0].find(':');
+      model_name_ = (sep != std::string::npos) ? list[0].substr(sep + 1) : list[0];
+    }
+  } else {
+    model_name_ = "0602";
+  }
+
   servo_ids_ = this->get_parameter("servo_ids").as_integer_array();
   status_rate_ = this->get_parameter("status_rate").as_double();
   auto_initialize_ = this->get_parameter("auto_initialize").as_bool();
@@ -49,7 +75,15 @@ HerkulexNode::HerkulexNode(const rclcpp::NodeOptions & options)
   serial_->setModel(model);
 
   // Set per-servo model overrides if specified (e.g. ["1:0602", "2:0602", "3:0201"])
-  auto servo_models_list = this->get_parameter("servo_models").as_string_array();
+  std::vector<std::string> servo_models_list;
+  auto sm_param = this->get_parameter("servo_models");
+  if (sm_param.get_type() == rclcpp::ParameterType::PARAMETER_STRING_ARRAY) {
+    servo_models_list = sm_param.as_string_array();
+  } else if (model_param.get_type() == rclcpp::ParameterType::PARAMETER_STRING_ARRAY) {
+    // If user passed the list directly to `model: ["1:0602", "2:0602", "3:0201"]`!
+    servo_models_list = model_param.as_string_array();
+  }
+
   for (const auto & entry : servo_models_list) {
     auto sep = entry.find(':');
     if (sep != std::string::npos) {

@@ -7,16 +7,19 @@ herkulex_driver:
     # Baud rate (common: 57600 for UNO, 115200 for Mega/Linux)
     baud_rate: 115200
 
-    # Servo model: "0101", "0201", "0102", "0401", "0402", "0601", "0602"
-    # or "DRS-0101", "DRS-0201", etc.
-    # DRS-0x02 series (0102, 0402, 0602) support additional velocity gains
+    # Default servo model (기본 서보 모델)
+    # DRS-0101, DRS-0201, DRS-0102, DRS-0401, DRS-0402, DRS-0601, DRS-0602
+    # servo_models에 명시되지 않은 서보는 이 기본 모델을 따릅니다.
+    # (주의: YAML 파서가 숫자로 인식하지 않도록 따옴표를 권장합니다: "0602")
     model: "0602"
 
     # List of servo IDs to monitor (publish status)
     # ID 1: Pan (DRS-0602), ID 2: Tilt (DRS-0602), ID 3: Trigger (DRS-0201)
     servo_ids: [1, 2, 3]
 
-    # Optional per-servo model overrides (format: "<id>:<model>")
+    # 서보별 개별 모델 지정 (Per-servo model overrides)
+    # 형식: "<id>:<model>" (예: "1:0602", "2:0602", "3:0201")
+    # 서로 다른 모델(Pan/Tilt: 0602, Trigger: 0201)이 혼용될 때 사용하며, 우선 적용됩니다.
     servo_models: ["1:0602", "2:0602", "3:0201"]
 
     # Status publishing rate in Hz (0 to disable)

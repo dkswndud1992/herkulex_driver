@@ -27,7 +27,7 @@ def generate_launch_description():
 
     model_arg = DeclareLaunchArgument(
         'model',
-        default_value='0101',
+        default_value='0602',
         description='HerkuleX servo model: 0101, 0201, 0102, 0401, 0402, 0601, 0602'
     )
 
