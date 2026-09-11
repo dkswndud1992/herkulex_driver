@@ -58,9 +58,23 @@ HerkulexModel HerkulexSerial::getModel() const
   return model_;
 }
 
-bool HerkulexSerial::supportsVelocityGain() const
+void HerkulexSerial::setServoModel(uint8_t servo_id, HerkulexModel model)
 {
-  return getModelSpec(model_).has_velocity_gain;
+  servo_models_[servo_id] = model;
+}
+
+HerkulexModel HerkulexSerial::getServoModel(uint8_t servo_id) const
+{
+  auto it = servo_models_.find(servo_id);
+  if (it != servo_models_.end()) {
+    return it->second;
+  }
+  return model_;
+}
+
+bool HerkulexSerial::supportsVelocityGain(uint8_t servo_id) const
+{
+  return getModelSpec(getServoModel(servo_id)).has_velocity_gain;
 }
 
 // ─── Open / Close ──────────────────────────────────────────────
@@ -398,7 +412,8 @@ bool HerkulexSerial::torqueOff(uint8_t servo_id)
 
 bool HerkulexSerial::moveOne(uint8_t servo_id, int goal, int playtime_ms, uint8_t led)
 {
-  if (goal < 0 || goal > 1023) {return false;}
+  auto spec = getModelSpec(getServoModel(servo_id));
+  if (goal < spec.min_position || goal > spec.max_position) {return false;}
   if (playtime_ms < 0 || playtime_ms > 2856) {return false;}
 
   std::lock_guard<std::mutex> lock(serial_mutex_);
@@ -452,7 +467,8 @@ bool HerkulexSerial::moveOne(uint8_t servo_id, int goal, int playtime_ms, uint8_
 bool HerkulexSerial::moveOneAngle(uint8_t servo_id, float angle, int playtime_ms, uint8_t led)
 {
   if (angle > 160.0f || angle < -160.0f) {return false;}
-  int position = static_cast<int>(angle / 0.325f) + 512;
+  auto spec = getModelSpec(getServoModel(servo_id));
+  int position = static_cast<int>(angle / spec.deg_per_count) + spec.center_position;
   return moveOne(servo_id, position, playtime_ms, led);
 }
 
@@ -527,7 +543,8 @@ int HerkulexSerial::getPosition(uint8_t servo_id)
     return -1;
   }
 
-  int position = ((response[10] & 0x03) << 8) | response[9];
+  auto spec = getModelSpec(getServoModel(servo_id));
+  int position = ((response[10] & spec.position_mask_msb) << 8) | response[9];
   return position;
 }
 
@@ -535,7 +552,8 @@ float HerkulexSerial::getAngle(uint8_t servo_id)
 {
   int pos = getPosition(servo_id);
   if (pos < 0) {return -999.0f;}
-  return (pos - 512) * 0.325f;
+  auto spec = getModelSpec(getServoModel(servo_id));
+  return (pos - spec.center_position) * spec.deg_per_count;
 }
 
 int HerkulexSerial::getSpeed(uint8_t servo_id)
@@ -628,7 +646,8 @@ ServoStatus HerkulexSerial::getServoStatus(uint8_t servo_id)
   status.status_error = static_cast<uint8_t>(stat(servo_id));
   status.position = getPosition(servo_id);
   if (status.position >= 0) {
-    status.angle = (status.position - 512) * 0.325f;
+    auto spec = getModelSpec(getServoModel(servo_id));
+    status.angle = (status.position - spec.center_position) * spec.deg_per_count;
   }
   status.speed = getSpeed(servo_id);
 
@@ -735,7 +754,7 @@ bool HerkulexSerial::setGain(uint8_t servo_id, uint8_t memory_type, const GainVa
   };
 
   // Velocity gains (DRS-0x02 series only: DRS-0102, DRS-0402, DRS-0602)
-  if (supportsVelocityGain()) {
+  if (supportsVelocityGain(servo_id)) {
     entries.push_back({ RAM_ADDR_VELOCITY_KP, EEP_ADDR_VELOCITY_KP, gains.velocity_kp });
     entries.push_back({ RAM_ADDR_VELOCITY_KI, EEP_ADDR_VELOCITY_KI, gains.velocity_ki });
   }
@@ -780,7 +799,7 @@ GainValues HerkulexSerial::getGain(uint8_t servo_id, uint8_t memory_type)
   };
 
   // Velocity gains (DRS-0x02 series only)
-  if (supportsVelocityGain()) {
+  if (supportsVelocityGain(servo_id)) {
     addrs.push_back({ RAM_ADDR_VELOCITY_KP, EEP_ADDR_VELOCITY_KP, &gains.velocity_kp });
     addrs.push_back({ RAM_ADDR_VELOCITY_KI, EEP_ADDR_VELOCITY_KI, &gains.velocity_ki });
   }

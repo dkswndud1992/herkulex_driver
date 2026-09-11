@@ -10,13 +10,17 @@ herkulex_driver:
     # Servo model: "0101", "0201", "0102", "0401", "0402", "0601", "0602"
     # or "DRS-0101", "DRS-0201", etc.
     # DRS-0x02 series (0102, 0402, 0602) support additional velocity gains
-    model: "0101"
+    model: "0602"
 
     # List of servo IDs to monitor (publish status)
-    servo_ids: [0, 1]
+    # ID 1: Pan (DRS-0602), ID 2: Tilt (DRS-0602), ID 3: Trigger (DRS-0201)
+    servo_ids: [1, 2, 3]
+
+    # Optional per-servo model overrides (format: "<id>:<model>")
+    servo_models: ["1:0602", "2:0602", "3:0201"]
 
     # Status publishing rate in Hz (0 to disable)
-    status_rate: 10.0
+    status_rate: 20.0
 
     # Auto-initialize servos on startup (clear error + torque ON)
     auto_initialize: true

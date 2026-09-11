@@ -41,23 +41,28 @@ struct ModelSpec
   int default_velocity_ki;       ///< Default velocity Ki (0x02 only)
   float max_torque_kgcm;         ///< Max torque in kgf·cm
   float no_load_speed_rpm;       ///< No-load speed in RPM
+  int min_position;              ///< Minimum valid position
+  int max_position;              ///< Maximum valid position
+  int center_position;           ///< Center (0 deg) position
+  float deg_per_count;           ///< Degrees per encoder count
+  uint8_t position_mask_msb;     ///< Mask for position MSB byte
 };
 
 /// Get the model specification for a given model
 inline const ModelSpec & getModelSpec(HerkulexModel model)
 {
   // Model specifications table
-  //   DRS-0101/0201: Basic series (potentiometer encoder)
-  //   DRS-0401/0601: Gen1 magnetic encoder series
-  //   DRS-0102/0402/0602: Gen2 magnetic absolute encoder series (+ velocity gains)
+  //   DRS-0101/0201: Basic series (potentiometer encoder, 10-bit, center 512, 0.325 deg/count)
+  //   DRS-0401/0601: Gen1 magnetic encoder series (11-bit, center 1024, 0.163 deg/count)
+  //   DRS-0102/0402/0602: Gen2 magnetic absolute encoder series (15-bit, center 16384, 0.02778 deg/count, + velocity gains)
   static const std::map<HerkulexModel, ModelSpec> specs = {
-    { HerkulexModel::DRS_0101, { "DRS-0101", false, 440, 8000, 0,   0,     0, 1.60f,  0.65f } },
-    { HerkulexModel::DRS_0201, { "DRS-0201", false, 440, 8000, 0,   0,     0, 3.17f,  0.65f } },
-    { HerkulexModel::DRS_0102, { "DRS-0102", true,  440, 8000, 0, 100, 12000, 1.60f,  0.65f } },
-    { HerkulexModel::DRS_0401, { "DRS-0401", false, 440, 8000, 0,   0,     0, 3.96f, 66.00f } },
-    { HerkulexModel::DRS_0402, { "DRS-0402", true,  440, 8000, 0, 100, 12000, 3.96f, 66.00f } },
-    { HerkulexModel::DRS_0601, { "DRS-0601", false, 440, 8000, 0,   0,     0, 7.40f, 61.80f } },
-    { HerkulexModel::DRS_0602, { "DRS-0602", true,  440, 8000, 0, 100, 12000, 7.40f, 61.80f } },
+    { HerkulexModel::DRS_0101, { "DRS-0101", false, 440, 8000, 0,   0,     0, 1.60f,  0.65f, 0,  1023,   512, 0.325f,   0x03 } },
+    { HerkulexModel::DRS_0201, { "DRS-0201", false, 440, 8000, 0,   0,     0, 3.17f,  0.65f, 0,  1023,   512, 0.325f,   0x03 } },
+    { HerkulexModel::DRS_0102, { "DRS-0102", true,  440, 8000, 0, 100, 12000, 1.60f,  0.65f, 0, 32767, 16384, 0.02778f, 0x7F } },
+    { HerkulexModel::DRS_0401, { "DRS-0401", false, 440, 8000, 0,   0,     0, 3.96f, 66.00f, 0,  2047,  1024, 0.163f,   0x7F } },
+    { HerkulexModel::DRS_0402, { "DRS-0402", true,  440, 8000, 0, 100, 12000, 3.96f, 66.00f, 0, 32767, 16384, 0.02778f, 0x7F } },
+    { HerkulexModel::DRS_0601, { "DRS-0601", false, 440, 8000, 0,   0,     0, 7.40f, 61.80f, 0,  2047,  1024, 0.163f,   0x7F } },
+    { HerkulexModel::DRS_0602, { "DRS-0602", true,  440, 8000, 0, 100, 12000, 7.40f, 61.80f, 0, 32767, 16384, 0.02778f, 0x7F } },
   };
 
   auto it = specs.find(model);
@@ -205,14 +210,20 @@ public:
 
   // ─── Model management ──────────────────────────────────────
 
-  /// Set the servo model (affects available features like velocity gains)
+  /// Set the default servo model (affects available features like velocity gains)
   void setModel(HerkulexModel model);
 
-  /// Get the current servo model
+  /// Get the default servo model
   HerkulexModel getModel() const;
 
-  /// Check if the current model supports velocity gain registers
-  bool supportsVelocityGain() const;
+  /// Set model for a specific servo ID
+  void setServoModel(uint8_t servo_id, HerkulexModel model);
+
+  /// Get model for a specific servo ID (falls back to default model if not set)
+  HerkulexModel getServoModel(uint8_t servo_id) const;
+
+  /// Check if a servo model supports velocity gain registers
+  bool supportsVelocityGain(uint8_t servo_id = 0) const;
 
   // ─── High-level servo control ───────────────────────────────
 
@@ -313,6 +324,7 @@ private:
 
   int fd_ = -1;
   HerkulexModel model_ = HerkulexModel::DRS_0101;
+  std::map<uint8_t, HerkulexModel> servo_models_;
   std::mutex serial_mutex_;
 };
 

@@ -24,6 +24,8 @@ HerkulexNode::HerkulexNode(const rclcpp::NodeOptions & options)
   this->declare_parameter<double>("status_rate", 10.0);
   this->declare_parameter<bool>("auto_initialize", true);
 
+  this->declare_parameter<std::vector<std::string>>("servo_models", std::vector<std::string>{});
+
   serial_port_ = this->get_parameter("serial_port").as_string();
   baud_rate_ = this->get_parameter("baud_rate").as_int();
   model_name_ = this->get_parameter("model").as_string();
@@ -35,7 +37,7 @@ HerkulexNode::HerkulexNode(const rclcpp::NodeOptions & options)
   auto model_spec = getModelSpec(model);
 
   RCLCPP_INFO(this->get_logger(),
-    "HerkuleX Driver - Model: %s, Port: %s, Baud: %d, Servos: %zu",
+    "HerkuleX Driver - Default Model: %s, Port: %s, Baud: %d, Servos: %zu",
     model_spec.name.c_str(), serial_port_.c_str(), baud_rate_, servo_ids_.size());
   if (model_spec.has_velocity_gain) {
     RCLCPP_INFO(this->get_logger(),
@@ -43,7 +45,26 @@ HerkulexNode::HerkulexNode(const rclcpp::NodeOptions & options)
   }
 
   // ─── Initialize serial communication ─────────────────────────
-  serial_ = std::make_unique<HerkulexSerial>();  serial_->setModel(model);
+  serial_ = std::make_unique<HerkulexSerial>();
+  serial_->setModel(model);
+
+  // Set per-servo model overrides if specified (e.g. ["1:0602", "2:0602", "3:0201"])
+  auto servo_models_list = this->get_parameter("servo_models").as_string_array();
+  for (const auto & entry : servo_models_list) {
+    auto sep = entry.find(':');
+    if (sep != std::string::npos) {
+      try {
+        uint8_t id = static_cast<uint8_t>(std::stoi(entry.substr(0, sep)));
+        std::string m_str = entry.substr(sep + 1);
+        auto m_enum = parseModelString(m_str);
+        serial_->setServoModel(id, m_enum);
+        RCLCPP_INFO(this->get_logger(),
+          "Servo ID %d assigned model: %s", id, getModelSpec(m_enum).name.c_str());
+      } catch (const std::exception & e) {
+        RCLCPP_WARN(this->get_logger(), "Failed to parse servo_models entry '%s': %s", entry.c_str(), e.what());
+      }
+    }
+  }
   if (!serial_->open(serial_port_, baud_rate_)) {
     RCLCPP_ERROR(this->get_logger(),
       "Failed to open serial port: %s", serial_port_.c_str());
@@ -268,9 +289,10 @@ void HerkulexNode::onGetPosition(
 
   int pos = serial_->getPosition(request->servo_id);
   if (pos >= 0) {
+    auto spec = getModelSpec(serial_->getServoModel(request->servo_id));
     response->success = true;
     response->position = pos;
-    response->angle = (pos - 512) * 0.325f;
+    response->angle = (pos - spec.center_position) * spec.deg_per_count;
     response->message = "OK";
   } else {
     response->success = false;
