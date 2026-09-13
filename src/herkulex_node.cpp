@@ -34,6 +34,8 @@ HerkulexNode::HerkulexNode(const rclcpp::NodeOptions & options)
   servo_models_desc.dynamic_typing = true;
   this->declare_parameter("servo_models", rclcpp::ParameterValue(std::vector<std::string>{}), servo_models_desc);
 
+  this->declare_parameter<double>("max_sync_packet_age_sec", 0.15);
+
   serial_port_ = this->get_parameter("serial_port").as_string();
   baud_rate_ = this->get_parameter("baud_rate").as_int();
 
@@ -58,6 +60,7 @@ HerkulexNode::HerkulexNode(const rclcpp::NodeOptions & options)
   servo_ids_ = this->get_parameter("servo_ids").as_integer_array();
   status_rate_ = this->get_parameter("status_rate").as_double();
   auto_initialize_ = this->get_parameter("auto_initialize").as_bool();
+  max_sync_packet_age_sec_ = this->get_parameter("max_sync_packet_age_sec").as_double();
 
   auto model = parseModelString(model_name_);
   auto model_spec = getModelSpec(model);
@@ -116,6 +119,17 @@ HerkulexNode::HerkulexNode(const rclcpp::NodeOptions & options)
 
   // ─── Create publisher ────────────────────────────────────────
   status_pub_ = this->create_publisher<msg::ServoStatusArray>("herkulex/status", 10);
+
+  // ─── Create subscriptions (Real-time synchronized control) ───
+  cmd_sync_angle_sub_ = this->create_subscription<msg::SyncAngleCmd>(
+    "herkulex/cmd_sync_angle",
+    rclcpp::QoS(1),
+    std::bind(&HerkulexNode::onCmdSyncAngle, this, _1));
+
+  cmd_sync_position_sub_ = this->create_subscription<msg::SyncPositionCmd>(
+    "herkulex/cmd_sync_position",
+    rclcpp::QoS(1),
+    std::bind(&HerkulexNode::onCmdSyncPosition, this, _1));
 
   // ─── Create timer for status publishing ──────────────────────
   if (status_rate_ > 0.0 && !servo_ids_.empty()) {
@@ -474,6 +488,112 @@ void HerkulexNode::onGetGain(
     gains.kp, gains.kd, gains.ki,
     gains.feedforward1, gains.feedforward2,
     gains.velocity_kp, gains.velocity_ki);
+}
+
+// ─── Topic Callbacks (Synchronized Multi-Servo Control) ────────
+
+void HerkulexNode::onCmdSyncAngle(const msg::SyncAngleCmd::SharedPtr msg)
+{
+  if (!serial_ || !serial_->isOpen()) {
+    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+      "Cannot execute sync angle command: Serial port is not open");
+    return;
+  }
+
+  // 1. Timestamp filtering (if timestamp provided)
+  bool has_stamp = (msg->header.stamp.sec != 0 || msg->header.stamp.nanosec != 0);
+  if (has_stamp) {
+    rclcpp::Time msg_stamp(msg->header.stamp);
+
+    // Filter out-of-order packets
+    if (last_sync_angle_stamp_.nanoseconds() > 0 && msg_stamp < last_sync_angle_stamp_) {
+      RCLCPP_DEBUG(this->get_logger(),
+        "Dropping out-of-order sync angle cmd (msg stamp: %f < last stamp: %f)",
+        msg_stamp.seconds(), last_sync_angle_stamp_.seconds());
+      return;
+    }
+
+    // Filter stale packets (network congestion / queue delay)
+    if (max_sync_packet_age_sec_ > 0.0) {
+      double age = (this->now() - msg_stamp).seconds();
+      if (age > max_sync_packet_age_sec_) {
+        RCLCPP_DEBUG(this->get_logger(),
+          "Dropping stale sync angle cmd (age: %.3fs > max: %.3fs)",
+          age, max_sync_packet_age_sec_);
+        return;
+      }
+    }
+
+    last_sync_angle_stamp_ = msg_stamp;
+  }
+
+  // 2. Validate array sizes
+  if (msg->servo_ids.empty() || msg->servo_ids.size() != msg->target_angles.size()) {
+    RCLCPP_WARN(this->get_logger(),
+      "Invalid SyncAngleCmd: servo_ids size (%zu) != target_angles size (%zu)",
+      msg->servo_ids.size(), msg->target_angles.size());
+    return;
+  }
+
+  // 3. Convert target_angles (float64[]) to float
+  std::vector<float> angles;
+  angles.reserve(msg->target_angles.size());
+  for (auto a : msg->target_angles) {
+    angles.push_back(static_cast<float>(a));
+  }
+
+  // 4. Send multi-servo S_JOG command
+  serial_->moveMultiAngle(msg->servo_ids, angles, msg->playtime_ms, msg->led_colors);
+}
+
+void HerkulexNode::onCmdSyncPosition(const msg::SyncPositionCmd::SharedPtr msg)
+{
+  if (!serial_ || !serial_->isOpen()) {
+    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+      "Cannot execute sync position command: Serial port is not open");
+    return;
+  }
+
+  // 1. Timestamp filtering (if timestamp provided)
+  bool has_stamp = (msg->header.stamp.sec != 0 || msg->header.stamp.nanosec != 0);
+  if (has_stamp) {
+    rclcpp::Time msg_stamp(msg->header.stamp);
+
+    // Filter out-of-order packets
+    if (last_sync_pos_stamp_.nanoseconds() > 0 && msg_stamp < last_sync_pos_stamp_) {
+      RCLCPP_DEBUG(this->get_logger(),
+        "Dropping out-of-order sync position cmd (msg stamp: %f < last stamp: %f)",
+        msg_stamp.seconds(), last_sync_pos_stamp_.seconds());
+      return;
+    }
+
+    // Filter stale packets (network congestion / queue delay)
+    if (max_sync_packet_age_sec_ > 0.0) {
+      double age = (this->now() - msg_stamp).seconds();
+      if (age > max_sync_packet_age_sec_) {
+        RCLCPP_DEBUG(this->get_logger(),
+          "Dropping stale sync position cmd (age: %.3fs > max: %.3fs)",
+          age, max_sync_packet_age_sec_);
+        return;
+      }
+    }
+
+    last_sync_pos_stamp_ = msg_stamp;
+  }
+
+  // 2. Validate array sizes
+  if (msg->servo_ids.empty() || msg->servo_ids.size() != msg->target_positions.size()) {
+    RCLCPP_WARN(this->get_logger(),
+      "Invalid SyncPositionCmd: servo_ids size (%zu) != target_positions size (%zu)",
+      msg->servo_ids.size(), msg->target_positions.size());
+    return;
+  }
+
+  // 3. Convert target_positions (int32[]) to int
+  std::vector<int> goals(msg->target_positions.begin(), msg->target_positions.end());
+
+  // 4. Send multi-servo S_JOG command
+  serial_->moveMulti(msg->servo_ids, goals, msg->playtime_ms, msg->led_colors);
 }
 
 }  // namespace herkulex_driver

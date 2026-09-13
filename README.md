@@ -88,15 +88,20 @@ ros2 run herkulex_driver herkulex_node \
 |---------|------|--------|------|
 | `serial_port` | string | `/dev/ttyUSB0` | 시리얼 포트 경로 |
 | `baud_rate` | int | `115200` | 통신 속도 |
-| `servo_ids` | int[] | `[0]` | 상태 모니터링할 서보 ID 목록 |
-| `status_rate` | double | `10.0` | 상태 발행 주기 (Hz, 0=비활성) |
+| `model` | string | `0602` | 기본 서보 모델 (예: "0602", "0201", "0101" 등) |
+| `servo_ids` | int[] | `[1, 2, 3]` | 상태 모니터링할 서보 ID 목록 |
+| `servo_models` | string[] | `[]` | 서보별 개별 모델 오버라이드 (예: `["1:0602", "2:0602", "3:0201"]`) |
+| `status_rate` | double | `20.0` | 상태 발행 주기 (Hz, 0=비활성) |
 | `auto_initialize` | bool | `true` | 시작 시 자동 초기화 여부 |
+| `max_sync_packet_age_sec` | double | `0.15` | 실시간 동기 토픽 최대 허용 지연(초). 초과 시 지연 패킷 폐기 |
 
 ## 토픽
 
 | 토픽 | 타입 | 설명 |
 |------|------|------|
 | `herkulex/status` | `herkulex_driver/msg/ServoStatusArray` | 서보 상태 (주기적 발행) |
+| `herkulex/cmd_sync_angle` | `herkulex_driver/msg/SyncAngleCmd` | **다중 서보 실시간 동시 각도 제어** (`CMD_S_JOG`, 타임스탬프 필터링) |
+| `herkulex/cmd_sync_position` | `herkulex_driver/msg/SyncPositionCmd` | **다중 서보 실시간 동시 위치 제어** (`CMD_S_JOG`, 타임스탬프 필터링) |
 
 ## 서비스
 

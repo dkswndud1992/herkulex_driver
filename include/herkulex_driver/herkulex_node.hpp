@@ -11,6 +11,8 @@
 
 #include "herkulex_driver/msg/servo_status.hpp"
 #include "herkulex_driver/msg/servo_status_array.hpp"
+#include "herkulex_driver/msg/sync_angle_cmd.hpp"
+#include "herkulex_driver/msg/sync_position_cmd.hpp"
 #include "herkulex_driver/srv/set_position.hpp"
 #include "herkulex_driver/srv/set_angle.hpp"
 #include "herkulex_driver/srv/set_speed.hpp"
@@ -40,6 +42,10 @@ public:
 private:
   // Timer callback for periodic status publishing
   void statusTimerCallback();
+
+  // Topic callbacks (Real-time synchronized control with timestamp filtering)
+  void onCmdSyncAngle(const msg::SyncAngleCmd::SharedPtr msg);
+  void onCmdSyncPosition(const msg::SyncPositionCmd::SharedPtr msg);
 
   // Service callbacks
   void onSetPosition(
@@ -100,9 +106,18 @@ private:
   std::vector<int64_t> servo_ids_;
   double status_rate_;
   bool auto_initialize_;
+  double max_sync_packet_age_sec_ = 0.15;
+
+  // Real-time timestamp tracking for dropping out-of-order/stale packets
+  rclcpp::Time last_sync_angle_stamp_{0, 0, RCL_ROS_TIME};
+  rclcpp::Time last_sync_pos_stamp_{0, 0, RCL_ROS_TIME};
 
   // Publishers
   rclcpp::Publisher<msg::ServoStatusArray>::SharedPtr status_pub_;
+
+  // Subscriptions (Real-time synchronized control)
+  rclcpp::Subscription<msg::SyncAngleCmd>::SharedPtr cmd_sync_angle_sub_;
+  rclcpp::Subscription<msg::SyncPositionCmd>::SharedPtr cmd_sync_position_sub_;
 
   // Timer
   rclcpp::TimerBase::SharedPtr status_timer_;

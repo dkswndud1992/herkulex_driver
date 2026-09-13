@@ -472,6 +472,107 @@ bool HerkulexSerial::moveOneAngle(uint8_t servo_id, float angle, int playtime_ms
   return moveOne(servo_id, position, playtime_ms, led);
 }
 
+bool HerkulexSerial::moveMulti(
+  const std::vector<uint8_t> & servo_ids,
+  const std::vector<int> & goals,
+  int playtime_ms,
+  const std::vector<uint8_t> & leds)
+{
+  if (servo_ids.empty() || servo_ids.size() != goals.size()) {
+    return false;
+  }
+  if (playtime_ms < 0 || playtime_ms > 2856) {
+    return false;
+  }
+
+  // Validate position limits per servo model
+  for (size_t i = 0; i < servo_ids.size(); ++i) {
+    auto spec = getModelSpec(getServoModel(servo_ids[i]));
+    if (goals[i] < spec.min_position || goals[i] > spec.max_position) {
+      return false;
+    }
+  }
+
+  std::lock_guard<std::mutex> lock(serial_mutex_);
+  if (fd_ < 0) {
+    return false;
+  }
+
+  uint8_t pt = msToPlaytime(playtime_ms);
+
+  // S_JOG data: first byte is playtime, followed by 4 bytes per servo [goalLSB, goalMSB, set_byte, id]
+  std::vector<uint8_t> full_data;
+  full_data.reserve(1 + servo_ids.size() * 4);
+  full_data.push_back(pt);
+
+  for (size_t i = 0; i < servo_ids.size(); ++i) {
+    uint8_t id = servo_ids[i];
+    int goal = goals[i];
+    uint8_t led = (i < leds.size()) ? leds[i] : 0;
+
+    uint8_t goalLSB = goal & 0xFF;
+    uint8_t goalMSB = (goal >> 8) & 0xFF;
+    uint8_t set_byte = buildSetByte(led, false);
+
+    full_data.push_back(goalLSB);
+    full_data.push_back(goalMSB);
+    full_data.push_back(set_byte);
+    full_data.push_back(id);
+  }
+
+  uint8_t packet_size = static_cast<uint8_t>(MIN_PACKET_SIZE + full_data.size());
+  uint8_t target_pid = (servo_ids.size() == 1) ? servo_ids[0] : BROADCAST_ID;
+  uint8_t cs1 = checksum1(packet_size, target_pid, CMD_S_JOG, full_data);
+  uint8_t cs2 = checksum2(cs1);
+
+  std::vector<uint8_t> packet;
+  packet.reserve(packet_size);
+  packet.push_back(HEADER_BYTE);
+  packet.push_back(HEADER_BYTE);
+  packet.push_back(packet_size);
+  packet.push_back(target_pid);
+  packet.push_back(CMD_S_JOG);
+  packet.push_back(cs1);
+  packet.push_back(cs2);
+  for (auto b : full_data) {
+    packet.push_back(b);
+  }
+
+  tcflush(fd_, TCIFLUSH);
+  ssize_t written = ::write(fd_, packet.data(), packet.size());
+  tcdrain(fd_);
+
+  return written == static_cast<ssize_t>(packet.size());
+}
+
+bool HerkulexSerial::moveMultiAngle(
+  const std::vector<uint8_t> & servo_ids,
+  const std::vector<float> & angles,
+  int playtime_ms,
+  const std::vector<uint8_t> & leds)
+{
+  if (servo_ids.empty() || servo_ids.size() != angles.size()) {
+    return false;
+  }
+
+  std::vector<int> goals;
+  goals.reserve(servo_ids.size());
+
+  for (size_t i = 0; i < servo_ids.size(); ++i) {
+    float angle = angles[i];
+    if (angle > 160.0f) {angle = 160.0f;}
+    if (angle < -160.0f) {angle = -160.0f;}
+
+    auto spec = getModelSpec(getServoModel(servo_ids[i]));
+    int position = static_cast<int>(angle / spec.deg_per_count) + spec.center_position;
+    if (position < spec.min_position) {position = spec.min_position;}
+    if (position > spec.max_position) {position = spec.max_position;}
+    goals.push_back(position);
+  }
+
+  return moveMulti(servo_ids, goals, playtime_ms, leds);
+}
+
 bool HerkulexSerial::moveSpeedOne(uint8_t servo_id, int speed, int playtime_ms, uint8_t led)
 {
   if (speed > 1023 || speed < -1023) {return false;}

@@ -27,3 +27,8 @@ herkulex_driver:
 
     # Auto-initialize servos on startup (clear error + torque ON)
     auto_initialize: true
+
+    # 실시간 동기화 제어 토픽 패킷 최대 허용 지연 시간 (초)
+    # 네트워크 지연이나 버퍼 누적으로 이 시간보다 오래된 패킷은 자동 폐기하여 지터/밀림 방지 (0.0: 비활성화)
+    max_sync_packet_age_sec: 0.15
+

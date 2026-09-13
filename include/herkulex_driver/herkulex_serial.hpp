@@ -251,6 +251,20 @@ public:
   /// Move one servo to an angle (-160.0~160.0) with playtime in ms
   bool moveOneAngle(uint8_t servo_id, float angle, int playtime_ms, uint8_t led = 0);
 
+  /// Move multiple servos synchronously to positions (raw counts) with playtime in ms using CMD_S_JOG
+  bool moveMulti(
+    const std::vector<uint8_t> & servo_ids,
+    const std::vector<int> & goals,
+    int playtime_ms,
+    const std::vector<uint8_t> & leds = {});
+
+  /// Move multiple servos synchronously to angles (-160.0~160.0) with playtime in ms using CMD_S_JOG
+  bool moveMultiAngle(
+    const std::vector<uint8_t> & servo_ids,
+    const std::vector<float> & angles,
+    int playtime_ms,
+    const std::vector<uint8_t> & leds = {});
+
   /// Move one servo with continuous rotation speed (-1023~1023)
   bool moveSpeedOne(uint8_t servo_id, int speed, int playtime_ms, uint8_t led = 0);
 

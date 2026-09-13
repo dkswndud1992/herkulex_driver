@@ -22,6 +22,8 @@ find_package(rosidl_default_generators REQUIRED)
 set(msg_files
   "msg/ServoStatus.msg"
   "msg/ServoStatusArray.msg"
+  "msg/SyncAngleCmd.msg"
+  "msg/SyncPositionCmd.msg"
 )
 
 set(srv_files
