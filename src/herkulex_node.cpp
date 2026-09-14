@@ -213,6 +213,13 @@ void HerkulexNode::statusTimerCallback()
   for (auto id : servo_ids_) {
     auto sv = serial_->getServoStatus(static_cast<uint8_t>(id));
 
+    if (sv.position < 0) {
+      RCLCPP_WARN_THROTTLE(
+        this->get_logger(), *this->get_clock(), 3000,
+        "HerkuleX: Failed to read status from servo ID %ld (check connection/power)", id);
+      continue;
+    }
+
     msg::ServoStatus servo_msg;
     servo_msg.servo_id = sv.servo_id;
     servo_msg.position = sv.position;
@@ -224,7 +231,9 @@ void HerkulexNode::statusTimerCallback()
     status_msg.servos.push_back(servo_msg);
   }
 
-  status_pub_->publish(status_msg);
+  if (!status_msg.servos.empty()) {
+    status_pub_->publish(status_msg);
+  }
 }
 
 // ─── Service Callbacks ─────────────────────────────────────────

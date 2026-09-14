@@ -276,6 +276,17 @@ bool HerkulexSerial::receivePacket(
     if (!header_found) {
       for (size_t i = 0; i + 1 < raw_buf.size(); i++) {
         if (raw_buf[i] == HEADER_BYTE && raw_buf[i + 1] == HEADER_BYTE) {
+          // If we have at least 5 bytes from header, inspect packet size and cmd to filter echoes
+          if (raw_buf.size() >= i + 5) {
+            uint8_t pkt_sz = raw_buf[i + 2];
+            uint8_t pkt_cmd = raw_buf[i + 4];
+            // In HerkuleX protocol, a valid response packet MUST have ACK bit set: (cmd & 0x40) != 0.
+            // Outgoing request packets have cmd < 0x40.
+            // If half-duplex echo is received or packet size mismatches, skip this header!
+            if ((pkt_cmd & 0x40) == 0 || (expected_size > 0 && pkt_sz != expected_size)) {
+              continue;
+            }
+          }
           header_found = true;
           header_idx = static_cast<int>(i);
           // Copy from header start
@@ -738,14 +749,49 @@ ServoStatus HerkulexSerial::getServoStatus(uint8_t servo_id)
 {
   ServoStatus status;
   status.servo_id = servo_id;
+  status.position = -1;
+  status.angle = 0.0f;
+  status.speed = 0;
+  status.status_error = 0;
+  status.status_detail = 0;
 
-  status.status_error = static_cast<uint8_t>(stat(servo_id));
-  status.position = getPosition(servo_id);
-  if (status.position >= 0) {
-    auto spec = getModelSpec(getServoModel(servo_id));
-    status.angle = (status.position - spec.center_position) * spec.deg_per_count;
+  std::lock_guard<std::mutex> lock(serial_mutex_);
+
+  // HerkuleX RAM Address 58 (0x3A): Calibrated Position (2 bytes)
+  // RAM_READ response (13 bytes) includes:
+  // [0..1] Header (0xFF, 0xFF)
+  // [2]    Packet Size (13)
+  // [3]    pID
+  // [4]    CMD (0x44)
+  // [5..6] Checksum 1, 2
+  // [7]    Address (58)
+  // [8]    Length (2)
+  // [9]    Calibrated Position LSB
+  // [10]   Calibrated Position MSB
+  // [11]   Status Error byte
+  // [12]   Status Detail byte
+  // By reading Address 58 once, we obtain position, error status, and detail in a single round trip!
+  std::vector<uint8_t> data = {
+    ADDR_CAL_POSITION,    // Address 58 (0x3A)
+    0x02                  // Length = 2 bytes
+  };
+
+  if (!sendPacket(servo_id, CMD_RAM_READ, data)) {
+    return status;
   }
-  status.speed = getSpeed(servo_id);
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(2));
+
+  std::vector<uint8_t> response;
+  if (!receivePacket(response, 13, 25)) {
+    return status;
+  }
+
+  auto spec = getModelSpec(getServoModel(servo_id));
+  status.position = ((response[10] & spec.position_mask_msb) << 8) | response[9];
+  status.angle = (status.position - spec.center_position) * spec.deg_per_count;
+  status.status_error = response[11];
+  status.status_detail = response[12];
 
   return status;
 }
