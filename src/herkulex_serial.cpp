@@ -276,16 +276,18 @@ bool HerkulexSerial::receivePacket(
     if (!header_found) {
       for (size_t i = 0; i + 1 < raw_buf.size(); i++) {
         if (raw_buf[i] == HEADER_BYTE && raw_buf[i + 1] == HEADER_BYTE) {
-          // If we have at least 5 bytes from header, inspect packet size and cmd to filter echoes
-          if (raw_buf.size() >= i + 5) {
-            uint8_t pkt_sz = raw_buf[i + 2];
-            uint8_t pkt_cmd = raw_buf[i + 4];
-            // In HerkuleX protocol, a valid response packet MUST have ACK bit set: (cmd & 0x40) != 0.
-            // Outgoing request packets have cmd < 0x40.
-            // If half-duplex echo is received or packet size mismatches, skip this header!
-            if ((pkt_cmd & 0x40) == 0 || (expected_size > 0 && pkt_sz != expected_size)) {
-              continue;
-            }
+          // Wait until we have at least MIN_PACKET_SIZE (7 bytes) to safely inspect header fields
+          if (raw_buf.size() < i + MIN_PACKET_SIZE) {
+            // Not enough bytes arrived yet, break and let next select/read accumulate more data
+            break;
+          }
+          uint8_t pkt_sz = raw_buf[i + 2];
+          uint8_t pkt_cmd = raw_buf[i + 4];
+          // In HerkuleX protocol, a valid response packet MUST have ACK bit set: (cmd & 0x40) != 0.
+          // Outgoing request packets have cmd < 0x40.
+          // If half-duplex echo is received or packet size mismatches, skip this header!
+          if ((pkt_cmd & 0x40) == 0 || (expected_size > 0 && pkt_sz != expected_size)) {
+            continue;
           }
           header_found = true;
           header_idx = static_cast<int>(i);
@@ -783,7 +785,7 @@ ServoStatus HerkulexSerial::getServoStatus(uint8_t servo_id)
   std::this_thread::sleep_for(std::chrono::milliseconds(2));
 
   std::vector<uint8_t> response;
-  if (!receivePacket(response, 13, 25)) {
+  if (!receivePacket(response, 13, 80)) {
     return status;
   }
 

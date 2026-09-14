@@ -210,15 +210,34 @@ void HerkulexNode::statusTimerCallback()
   status_msg.header.stamp = this->now();
   status_msg.header.frame_id = "herkulex";
 
+  // Persistent tracking for unresponsive servos to prevent stalling the active servos
+  static std::map<int64_t, int> fail_counts;
+  static std::map<int64_t, int> backoff_ticks;
+
   for (auto id : servo_ids_) {
+    // If servo has failed repeatedly, back off polling to avoid blocking the bus
+    if (backoff_ticks[id] > 0) {
+      backoff_ticks[id]--;
+      continue;
+    }
+
     auto sv = serial_->getServoStatus(static_cast<uint8_t>(id));
 
     if (sv.position < 0) {
+      fail_counts[id]++;
+      if (fail_counts[id] >= 3) {
+        // Back off for 20 timer ticks (~2 seconds at 10Hz) before retrying
+        backoff_ticks[id] = 20;
+      }
       RCLCPP_WARN_THROTTLE(
         this->get_logger(), *this->get_clock(), 3000,
         "HerkuleX: Failed to read status from servo ID %ld (check connection/power)", id);
       continue;
     }
+
+    // Success: reset fail count
+    fail_counts[id] = 0;
+    backoff_ticks[id] = 0;
 
     msg::ServoStatus servo_msg;
     servo_msg.servo_id = sv.servo_id;

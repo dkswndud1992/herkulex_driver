@@ -23,7 +23,8 @@ herkulex_driver:
     servo_models: ["1:0602", "2:0602", "3:0201"]
 
     # Status publishing rate in Hz (0 to disable)
-    status_rate: 20.0
+    # 10.0 Hz (100ms 주기): USB 시리얼 지연(16ms) 감안 시 ID 1, 2 모니터링과 제어 명령 간 간섭 방지에 최적
+    status_rate: 10.0
 
     # Auto-initialize servos on startup (clear error + torque ON)
     auto_initialize: true
