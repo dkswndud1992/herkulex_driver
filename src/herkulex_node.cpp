@@ -34,7 +34,7 @@ HerkulexNode::HerkulexNode(const rclcpp::NodeOptions & options)
   servo_models_desc.dynamic_typing = true;
   this->declare_parameter("servo_models", rclcpp::ParameterValue(std::vector<std::string>{}), servo_models_desc);
 
-  this->declare_parameter<double>("max_sync_packet_age_sec", 0.15);
+  this->declare_parameter<double>("max_sync_packet_age_sec", 0.0);
 
   serial_port_ = this->get_parameter("serial_port").as_string();
   baud_rate_ = this->get_parameter("baud_rate").as_int();
@@ -513,12 +513,12 @@ void HerkulexNode::onCmdSyncAngle(const msg::SyncAngleCmd::SharedPtr msg)
       return;
     }
 
-    // Filter stale packets (network congestion / queue delay)
+    // Filter stale packets (network congestion / queue delay, only if enabled > 0.0)
     if (max_sync_packet_age_sec_ > 0.0) {
       double age = (this->now() - msg_stamp).seconds();
       if (age > max_sync_packet_age_sec_) {
-        RCLCPP_DEBUG(this->get_logger(),
-          "Dropping stale sync angle cmd (age: %.3fs > max: %.3fs)",
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+          "Dropping stale sync angle cmd (age: %.3fs > max: %.3fs). Check system clock synchronization!",
           age, max_sync_packet_age_sec_);
         return;
       }
@@ -543,7 +543,10 @@ void HerkulexNode::onCmdSyncAngle(const msg::SyncAngleCmd::SharedPtr msg)
   }
 
   // 4. Send multi-servo S_JOG command
-  serial_->moveMultiAngle(msg->servo_ids, angles, msg->playtime_ms, msg->led_colors);
+  if (!serial_->moveMultiAngle(msg->servo_ids, angles, msg->playtime_ms, msg->led_colors)) {
+    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+      "serial_->moveMultiAngle failed");
+  }
 }
 
 void HerkulexNode::onCmdSyncPosition(const msg::SyncPositionCmd::SharedPtr msg)
@@ -567,12 +570,12 @@ void HerkulexNode::onCmdSyncPosition(const msg::SyncPositionCmd::SharedPtr msg)
       return;
     }
 
-    // Filter stale packets (network congestion / queue delay)
+    // Filter stale packets (network congestion / queue delay, only if enabled > 0.0)
     if (max_sync_packet_age_sec_ > 0.0) {
       double age = (this->now() - msg_stamp).seconds();
       if (age > max_sync_packet_age_sec_) {
-        RCLCPP_DEBUG(this->get_logger(),
-          "Dropping stale sync position cmd (age: %.3fs > max: %.3fs)",
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+          "Dropping stale sync position cmd (age: %.3fs > max: %.3fs). Check system clock synchronization!",
           age, max_sync_packet_age_sec_);
         return;
       }
@@ -593,7 +596,10 @@ void HerkulexNode::onCmdSyncPosition(const msg::SyncPositionCmd::SharedPtr msg)
   std::vector<int> goals(msg->target_positions.begin(), msg->target_positions.end());
 
   // 4. Send multi-servo S_JOG command
-  serial_->moveMulti(msg->servo_ids, goals, msg->playtime_ms, msg->led_colors);
+  if (!serial_->moveMulti(msg->servo_ids, goals, msg->playtime_ms, msg->led_colors)) {
+    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+      "serial_->moveMulti failed");
+  }
 }
 
 }  // namespace herkulex_driver

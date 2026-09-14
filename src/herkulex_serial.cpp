@@ -485,14 +485,6 @@ bool HerkulexSerial::moveMulti(
     return false;
   }
 
-  // Validate position limits per servo model
-  for (size_t i = 0; i < servo_ids.size(); ++i) {
-    auto spec = getModelSpec(getServoModel(servo_ids[i]));
-    if (goals[i] < spec.min_position || goals[i] > spec.max_position) {
-      return false;
-    }
-  }
-
   std::lock_guard<std::mutex> lock(serial_mutex_);
   if (fd_ < 0) {
     return false;
@@ -507,7 +499,10 @@ bool HerkulexSerial::moveMulti(
 
   for (size_t i = 0; i < servo_ids.size(); ++i) {
     uint8_t id = servo_ids[i];
+    auto spec = getModelSpec(getServoModel(id));
     int goal = goals[i];
+    if (goal < spec.min_position) {goal = spec.min_position;}
+    if (goal > spec.max_position) {goal = spec.max_position;}
     uint8_t led = (i < leds.size()) ? leds[i] : 0;
 
     uint8_t goalLSB = goal & 0xFF;
