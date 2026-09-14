@@ -374,10 +374,14 @@ bool HerkulexSerial::setACK(int value)
 {
   std::lock_guard<std::mutex> lock(serial_mutex_);
 
+  // HerkuleX RAM Address 0x07 (and EEP 0x07) is ACK Policy
+  // 0: Reply only to READ commands (STAT, RAM_READ, EEP_READ)
+  // 1: Reply to all commands
+  // 2: Reply to all commands including broadcast
   std::vector<uint8_t> data = {
-    ADDR_TORQUE_CONTROL,           // Address (using 0x34)
+    0x07,                          // Address 7: ACK Policy
     0x01,                          // Length
-    static_cast<uint8_t>(value)    // ACK value
+    static_cast<uint8_t>(value)    // ACK value (1 = reply to all)
   };
 
   return sendPacket(BROADCAST_ID, CMD_RAM_WRITE, data);
@@ -470,7 +474,6 @@ bool HerkulexSerial::moveOne(uint8_t servo_id, int goal, int playtime_ms, uint8_
     packet.push_back(b);
   }
 
-  tcflush(fd_, TCIFLUSH);
   ssize_t written = ::write(fd_, packet.data(), packet.size());
   tcdrain(fd_);
 
@@ -546,7 +549,6 @@ bool HerkulexSerial::moveMulti(
     packet.push_back(b);
   }
 
-  tcflush(fd_, TCIFLUSH);
   ssize_t written = ::write(fd_, packet.data(), packet.size());
   tcdrain(fd_);
 
@@ -625,7 +627,6 @@ bool HerkulexSerial::moveSpeedOne(uint8_t servo_id, int speed, int playtime_ms, 
     packet.push_back(b);
   }
 
-  tcflush(fd_, TCIFLUSH);
   ssize_t written = ::write(fd_, packet.data(), packet.size());
   tcdrain(fd_);
 

@@ -215,9 +215,19 @@ void HerkulexNode::statusTimerCallback()
   static std::map<int64_t, int> backoff_ticks;
 
   for (auto id : servo_ids_) {
+    msg::ServoStatus servo_msg;
+    servo_msg.servo_id = static_cast<uint8_t>(id);
+
     // If servo has failed repeatedly, back off polling to avoid blocking the bus
     if (backoff_ticks[id] > 0) {
       backoff_ticks[id]--;
+      // Include offline status so telemetry reflects the servo state
+      servo_msg.position = -1;
+      servo_msg.angle = 0.0f;
+      servo_msg.speed = 0;
+      servo_msg.status_error = 0xFF;
+      servo_msg.status_detail = 0xFF;
+      status_msg.servos.push_back(servo_msg);
       continue;
     }
 
@@ -231,25 +241,29 @@ void HerkulexNode::statusTimerCallback()
       }
       RCLCPP_WARN_THROTTLE(
         this->get_logger(), *this->get_clock(), 3000,
-        "HerkuleX: Failed to read status from servo ID %ld (check connection/power)", id);
-      continue;
+        "HerkuleX: Failed to read status from servo ID %ld (check RX wiring/connection)", id);
+
+      servo_msg.position = -1;
+      servo_msg.angle = 0.0f;
+      servo_msg.speed = 0;
+      servo_msg.status_error = 0xFF;
+      servo_msg.status_detail = 0xFF;
+    } else {
+      // Success: reset fail count
+      fail_counts[id] = 0;
+      backoff_ticks[id] = 0;
+
+      servo_msg.position = sv.position;
+      servo_msg.angle = sv.angle;
+      servo_msg.speed = sv.speed;
+      servo_msg.status_error = sv.status_error;
+      servo_msg.status_detail = sv.status_detail;
     }
-
-    // Success: reset fail count
-    fail_counts[id] = 0;
-    backoff_ticks[id] = 0;
-
-    msg::ServoStatus servo_msg;
-    servo_msg.servo_id = sv.servo_id;
-    servo_msg.position = sv.position;
-    servo_msg.angle = sv.angle;
-    servo_msg.speed = sv.speed;
-    servo_msg.status_error = sv.status_error;
-    servo_msg.status_detail = sv.status_detail;
 
     status_msg.servos.push_back(servo_msg);
   }
 
+  // Always publish status message to keep topic rate steady and inform subscribers
   if (!status_msg.servos.empty()) {
     status_pub_->publish(status_msg);
   }
