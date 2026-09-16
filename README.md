@@ -93,6 +93,7 @@ ros2 run herkulex_driver herkulex_node \
 | `servo_models` | string[] | `[]` | 서보별 개별 모델 오버라이드 (예: `["1:0602", "2:0602", "3:0201"]`) |
 | `status_rate` | double | `20.0` | 상태 발행 주기 (Hz, 0=비활성) |
 | `auto_initialize` | bool | `true` | 시작 시 자동 초기화 여부 |
+| `auto_torque_on` | bool | `true` | 서보 OFF 감지 시 자동 토크 ON 복구 (핫플러그 지원) |
 | `max_sync_packet_age_sec` | double | `0.15` | 실시간 동기 토픽 최대 허용 지연(초). 초과 시 지연 패킷 폐기 |
 
 ## 토픽

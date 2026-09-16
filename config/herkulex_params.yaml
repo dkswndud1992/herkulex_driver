@@ -29,6 +29,9 @@ herkulex_driver:
     # Auto-initialize servos on startup (clear error + torque ON)
     auto_initialize: true
 
+    # Auto-enable torque when servo is detected in OFF state (핫플러그/재연결 시 자동 서보 ON 복구)
+    auto_torque_on: true
+
     # 실시간 동기화 제어 토픽 패킷 최대 허용 지연 시간 (초)
     # 0.0: 비활성화 (기본값, 서로 다른 기기 간 시계 오차(NTP Drift)로 인한 패킷 드랍 방지)
     # 정밀한 시계 동기화 환경에서만 필요 시 양수(예: 0.5초)로 설정

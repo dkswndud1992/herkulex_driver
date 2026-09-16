@@ -106,6 +106,7 @@ private:
   std::vector<int64_t> servo_ids_;
   double status_rate_;
   bool auto_initialize_;
+  bool auto_torque_on_;
   double max_sync_packet_age_sec_ = 0.15;
 
   // Real-time timestamp tracking for dropping out-of-order/stale packets

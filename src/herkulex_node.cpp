@@ -28,6 +28,7 @@ HerkulexNode::HerkulexNode(const rclcpp::NodeOptions & options)
   this->declare_parameter<std::vector<int64_t>>("servo_ids", {0});
   this->declare_parameter<double>("status_rate", 10.0);
   this->declare_parameter<bool>("auto_initialize", true);
+  this->declare_parameter<bool>("auto_torque_on", true);
 
   rcl_interfaces::msg::ParameterDescriptor servo_models_desc;
   servo_models_desc.description = "Per-servo model overrides (e.g. ['1:0602', '2:0602', '3:0201'])";
@@ -60,6 +61,7 @@ HerkulexNode::HerkulexNode(const rclcpp::NodeOptions & options)
   servo_ids_ = this->get_parameter("servo_ids").as_integer_array();
   status_rate_ = this->get_parameter("status_rate").as_double();
   auto_initialize_ = this->get_parameter("auto_initialize").as_bool();
+  auto_torque_on_ = this->get_parameter("auto_torque_on").as_bool();
   max_sync_packet_age_sec_ = this->get_parameter("max_sync_packet_age_sec").as_double();
 
   auto model = parseModelString(model_name_);
@@ -252,6 +254,26 @@ void HerkulexNode::statusTimerCallback()
       // Success: reset fail count
       fail_counts[id] = 0;
       backoff_ticks[id] = 0;
+
+      // Check if torque is OFF, and automatically turn it ON if auto_torque_on_ is enabled
+      // In Herkulex protocol, Status Detail byte Bit 6 (0x40) represents Torque ON state (0 = Torque Free/OFF)
+      if (auto_torque_on_) {
+        bool torque_on = (sv.status_detail & 0x40) != 0;
+        if (!torque_on) {
+          RCLCPP_INFO(this->get_logger(),
+            "HerkuleX: Servo ID %ld responded but torque is OFF (detail=0x%02X). Automatically turning torque ON...",
+            id, sv.status_detail);
+          if (sv.status_error != 0) {
+            serial_->clearError(static_cast<uint8_t>(id));
+          }
+          if (serial_->torqueOn(static_cast<uint8_t>(id))) {
+            RCLCPP_INFO(this->get_logger(), "HerkuleX: Servo ID %ld torque successfully enabled!", id);
+            sv.status_detail |= 0x40;  // Reflect torque ON state
+          } else {
+            RCLCPP_WARN(this->get_logger(), "HerkuleX: Failed to enable torque for Servo ID %ld", id);
+          }
+        }
+      }
 
       servo_msg.position = sv.position;
       servo_msg.angle = sv.angle;
