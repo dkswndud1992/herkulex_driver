@@ -328,7 +328,7 @@ private:
     const std::vector<uint8_t> & data = {});
 
   /// Receive a response packet, returns data portion
-  bool receivePacket(std::vector<uint8_t> & response, int expected_size, int timeout_ms = 80);
+  bool receivePacket(std::vector<uint8_t> & response, int expected_size, int timeout_ms = 150);
 
   /// Calculate checksum1
   static uint8_t checksum1(uint8_t packet_size, uint8_t servo_id,

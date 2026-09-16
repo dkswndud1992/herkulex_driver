@@ -9,6 +9,7 @@
 #include <termios.h>
 #include <unistd.h>
 #include <sys/select.h>
+#include <sys/ioctl.h>
 
 #include <cstring>
 #include <chrono>
@@ -123,6 +124,14 @@ bool HerkulexSerial::open(const std::string & port, int baud_rate)
     fd_ = -1;
     return false;
   }
+
+  // Restore blocking mode for standard POSIX select/read semantics
+  fcntl(fd_, F_SETFL, 0);
+
+  // Assert DTR and RTS lines (matching Windows COM port driver behavior)
+  // Many generic USB-to-UART modules use DTR/RTS to bias, power, or enable the RX line/transceiver
+  int modem_bits = TIOCM_DTR | TIOCM_RTS;
+  ioctl(fd_, TIOCMBIS, &modem_bits);
 
   return true;
 }
@@ -804,7 +813,7 @@ ServoStatus HerkulexSerial::getServoStatus(uint8_t servo_id)
   std::this_thread::sleep_for(std::chrono::milliseconds(2));
 
   std::vector<uint8_t> response;
-  if (!receivePacket(response, 13, 80)) {
+  if (!receivePacket(response, 13, 150)) {
     return status;
   }
 
