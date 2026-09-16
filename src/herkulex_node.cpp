@@ -232,6 +232,17 @@ void HerkulexNode::statusTimerCallback()
       status_msg.servos.push_back(servo_msg);
       continue;
     }
+    // If servo was previously unreachable (backoff just expired), re-initialize before retrying.
+    // After hot-plug, the servo reboots with EEPROM defaults — ACK Policy may be 0 (no response
+    // to RAM_READ), so getServoStatus() would always time out. We must restore ACK Policy,
+    // clear errors, and enable torque via TX-only commands before attempting to read status.
+    if (auto_torque_on_ && fail_counts[id] >= 3) {
+      RCLCPP_INFO(this->get_logger(),
+        "HerkuleX: Servo ID %ld backoff expired. Re-initializing (clearError + setACK + torqueOn)...", id);
+      serial_->clearError(static_cast<uint8_t>(id));
+      serial_->setACK(1);  // Restore ACK Policy to reply to READ commands (broadcast)
+      serial_->torqueOn(static_cast<uint8_t>(id));
+    }
 
     auto sv = serial_->getServoStatus(static_cast<uint8_t>(id));
 
