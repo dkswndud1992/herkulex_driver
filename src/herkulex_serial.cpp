@@ -227,6 +227,11 @@ bool HerkulexSerial::receivePacket(
   std::vector<uint8_t> & response,
   int expected_size, int timeout_ms)
 {
+  // Reset RX diagnostics
+  last_rx_bytes_ = 0;
+  last_rx_header_found_ = false;
+  last_rx_checksum_fail_ = false;
+
   if (fd_ < 0) {return false;}
 
   response.clear();
@@ -245,6 +250,7 @@ bool HerkulexSerial::receivePacket(
     int remaining_ms = timeout_ms -
       static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count());
     if (remaining_ms <= 0) {
+      last_rx_bytes_ = static_cast<int>(raw_buf.size());
       return false;
     }
 
@@ -259,6 +265,7 @@ bool HerkulexSerial::receivePacket(
 
     int sel = select(fd_ + 1, &read_fds, nullptr, nullptr, &tv);
     if (sel <= 0) {
+      last_rx_bytes_ = static_cast<int>(raw_buf.size());
       return false;
     }
 
@@ -290,6 +297,7 @@ bool HerkulexSerial::receivePacket(
             continue;
           }
           header_found = true;
+          last_rx_header_found_ = true;
           header_idx = static_cast<int>(i);
           // Copy from header start
           int available = static_cast<int>(raw_buf.size()) - header_idx;
@@ -327,10 +335,13 @@ bool HerkulexSerial::receivePacket(
     uint8_t calc_cs2 = checksum2(calc_cs1);
 
     if (calc_cs1 != pkt_cs1 || calc_cs2 != pkt_cs2) {
+      last_rx_bytes_ = static_cast<int>(raw_buf.size());
+      last_rx_checksum_fail_ = true;
       return false;
     }
   }
 
+  last_rx_bytes_ = total_read;
   return true;
 }
 

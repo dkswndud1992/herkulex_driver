@@ -340,6 +340,15 @@ private:
   HerkulexModel model_ = HerkulexModel::DRS_0101;
   std::map<uint8_t, HerkulexModel> servo_models_;
   std::mutex serial_mutex_;
+
+public:
+  // ─── RX Diagnostic (set by receivePacket, read-only externally) ──
+  /// Number of raw bytes received in the last receivePacket call
+  int last_rx_bytes_ = 0;
+  /// Whether a valid ACK header was found in the last receivePacket call
+  bool last_rx_header_found_ = false;
+  /// Whether the last receivePacket failure was due to checksum mismatch
+  bool last_rx_checksum_fail_ = false;
 };
 
 }  // namespace herkulex_driver

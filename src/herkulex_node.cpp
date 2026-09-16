@@ -237,11 +237,12 @@ void HerkulexNode::statusTimerCallback()
     // to RAM_READ), so getServoStatus() would always time out. We must restore ACK Policy,
     // clear errors, and enable torque via TX-only commands before attempting to read status.
     if (auto_torque_on_ && fail_counts[id] >= 3) {
-      RCLCPP_INFO(this->get_logger(),
-        "HerkuleX: Servo ID %ld backoff expired. Re-initializing (clearError + setACK + torqueOn)...", id);
+      RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 10000,
+        "HerkuleX: Servo ID %ld - Re-initializing after backoff (clearError + setACK + torqueOn)...", id);
       serial_->clearError(static_cast<uint8_t>(id));
       serial_->setACK(1);  // Restore ACK Policy to reply to READ commands (broadcast)
       serial_->torqueOn(static_cast<uint8_t>(id));
+      fail_counts[id] = 0;  // Reset to give fresh retries before next backoff
     }
 
     auto sv = serial_->getServoStatus(static_cast<uint8_t>(id));
@@ -252,9 +253,14 @@ void HerkulexNode::statusTimerCallback()
         // Back off for 20 timer ticks (~2 seconds at 10Hz) before retrying
         backoff_ticks[id] = 20;
       }
+      // Diagnostic: show RX byte count to distinguish no-data vs echo-only vs checksum-fail
       RCLCPP_WARN_THROTTLE(
-        this->get_logger(), *this->get_clock(), 3000,
-        "HerkuleX: Failed to read status from servo ID %ld (check RX wiring/connection)", id);
+        this->get_logger(), *this->get_clock(), 5000,
+        "HerkuleX: Servo ID %ld status read failed (RX: %d bytes, header=%s, checksum_fail=%s)",
+        id,
+        serial_->last_rx_bytes_,
+        serial_->last_rx_header_found_ ? "yes" : "no",
+        serial_->last_rx_checksum_fail_ ? "yes" : "no");
 
       servo_msg.position = -1;
       servo_msg.angle = 0.0f;
