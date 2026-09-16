@@ -234,13 +234,13 @@ void HerkulexNode::statusTimerCallback()
     }
     // If servo was previously unreachable (backoff just expired), re-initialize before retrying.
     // After hot-plug, the servo reboots with EEPROM defaults — ACK Policy may be 0 (no response
-    // to RAM_READ), so getServoStatus() would always time out. We must restore ACK Policy,
+    // to RAM_READ), so getServoStatus() would always time out. We must restore ACK Policy (RAM Addr 1),
     // clear errors, and enable torque via TX-only commands before attempting to read status.
     if (auto_torque_on_ && fail_counts[id] >= 3) {
       RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 10000,
         "HerkuleX: Servo ID %ld - Re-initializing after backoff (clearError + setACK + torqueOn)...", id);
       serial_->clearError(static_cast<uint8_t>(id));
-      serial_->setACK(1);  // Restore ACK Policy to reply to READ commands (broadcast)
+      serial_->setACK(static_cast<uint8_t>(id), 1);  // Set ACK Policy to 1 (reply to READ) for this servo
       serial_->torqueOn(static_cast<uint8_t>(id));
       fail_counts[id] = 0;  // Reset to give fresh retries before next backoff
     }
@@ -253,14 +253,24 @@ void HerkulexNode::statusTimerCallback()
         // Back off for 20 timer ticks (~2 seconds at 10Hz) before retrying
         backoff_ticks[id] = 20;
       }
-      // Diagnostic: show RX byte count to distinguish no-data vs echo-only vs checksum-fail
-      RCLCPP_WARN_THROTTLE(
-        this->get_logger(), *this->get_clock(), 5000,
-        "HerkuleX: Servo ID %ld status read failed (RX: %d bytes, header=%s, checksum_fail=%s)",
-        id,
-        serial_->last_rx_bytes_,
-        serial_->last_rx_header_found_ ? "yes" : "no",
-        serial_->last_rx_checksum_fail_ ? "yes" : "no");
+
+      // Check if servo at least responds to STAT (which always replies by firmware spec, regardless of ACK Policy)
+      int stat_res = serial_->stat(static_cast<uint8_t>(id));
+
+      if (stat_res >= 0) {
+        // Servo responds to STAT! Hardware RX wire is working. Re-apply setACK for RAM_READ.
+        RCLCPP_WARN_THROTTLE(
+          this->get_logger(), *this->get_clock(), 5000,
+          "HerkuleX: Servo ID %ld - STAT command OK (status_error=0x%02X), but RAM_READ failed (RX: %d bytes). Re-applying setACK(1)...",
+          id, stat_res, serial_->last_rx_bytes_);
+        serial_->setACK(static_cast<uint8_t>(id), 1);
+      } else {
+        // Servo does not even respond to STAT (0 bytes). Hardware RX communication failure.
+        RCLCPP_WARN_THROTTLE(
+          this->get_logger(), *this->get_clock(), 5000,
+          "HerkuleX: Servo ID %ld completely silent (STAT & RAM_READ timed out, RX: 0 bytes). Check RX line: Servo TXD pin -> USB adapter RXD pin",
+          id);
+      }
 
       servo_msg.position = -1;
       servo_msg.angle = 0.0f;

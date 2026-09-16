@@ -98,6 +98,8 @@ bool HerkulexSerial::open(const std::string & port, int baud_rate)
     return false;
   }
 
+  cfmakeraw(&tty);
+
   speed_t spd = baudToSpeed(baud_rate);
   cfsetispeed(&tty, spd);
   cfsetospeed(&tty, spd);
@@ -109,12 +111,6 @@ bool HerkulexSerial::open(const std::string & port, int baud_rate)
   tty.c_cflag |= CS8;            // 8 data bits
   tty.c_cflag &= ~CRTSCTS;       // No hardware flow control
   tty.c_cflag |= CLOCAL | CREAD; // Enable receiver, ignore modem
-
-  // Raw mode
-  tty.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
-  tty.c_iflag &= ~(IXON | IXOFF | IXANY);
-  tty.c_iflag &= ~(INLCR | ICRNL | IGNCR);
-  tty.c_oflag &= ~OPOST;
 
   // Read timeout settings
   tty.c_cc[VMIN]  = 0;
@@ -354,6 +350,12 @@ bool HerkulexSerial::initialize()
   if (!clearError(BROADCAST_ID)) {return false;}
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
+  // Restore Max Voltage (RAM Address 7) to safe default (180 = 18.0V)
+  // in case previous buggy code overwrote Address 7 with 1
+  std::vector<uint8_t> max_volt_data = { 0x07, 0x01, 180 };
+  sendPacket(BROADCAST_ID, CMD_RAM_WRITE, max_volt_data);
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
   if (!setACK(1)) {return false;}
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
@@ -383,19 +385,24 @@ int HerkulexSerial::stat(uint8_t servo_id)
 
 bool HerkulexSerial::setACK(int value)
 {
+  return setACK(BROADCAST_ID, value);
+}
+
+bool HerkulexSerial::setACK(uint8_t servo_id, int value)
+{
   std::lock_guard<std::mutex> lock(serial_mutex_);
 
-  // HerkuleX RAM Address 0x07 (and EEP 0x07) is ACK Policy
-  // 0: Reply only to READ commands (STAT, RAM_READ, EEP_READ)
-  // 1: Reply to all commands
-  // 2: Reply to all commands including broadcast
+  // HerkuleX RAM Address 0x01 is ACK Policy:
+  // 0: No reply to any Request Packet (except STAT)
+  // 1: Reply only to READ commands (STAT, RAM_READ, EEP_READ)
+  // 2: Reply to all Request Packets
   std::vector<uint8_t> data = {
-    0x07,                          // Address 7: ACK Policy
-    0x01,                          // Length
-    static_cast<uint8_t>(value)    // ACK value (1 = reply to all)
+    ADDR_ACK_POLICY,               // Address 1: ACK Policy (0x01)
+    0x01,                          // Length = 1 byte
+    static_cast<uint8_t>(value)    // ACK value (1 = reply to read commands)
   };
 
-  return sendPacket(BROADCAST_ID, CMD_RAM_WRITE, data);
+  return sendPacket(servo_id, CMD_RAM_WRITE, data);
 }
 
 bool HerkulexSerial::clearError(uint8_t servo_id)

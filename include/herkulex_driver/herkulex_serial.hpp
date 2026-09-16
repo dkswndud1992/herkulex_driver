@@ -138,11 +138,15 @@ constexpr uint8_t LED_PINK             = 0x06;
 constexpr uint8_t LED_WHITE            = 0x07;
 
 // RAM addresses (common to all models)
+constexpr uint8_t ADDR_ACK_POLICY      = 1;    // 0x01: ACK Policy (0=No reply, 1=Reply to READ only, 2=Always reply)
 constexpr uint8_t ADDR_TORQUE_CONTROL  = 52;   // 0x34
 constexpr uint8_t ADDR_LED_CONTROL     = 53;   // 0x35
 constexpr uint8_t ADDR_STATUS_ERROR    = 48;   // 0x30
 constexpr uint8_t ADDR_CAL_POSITION    = 58;   // 0x3A
 constexpr uint8_t ADDR_SPEED           = 64;   // 0x40
+
+// EEP addresses
+constexpr uint8_t EEP_ADDR_ACK_POLICY  = 8;    // 0x08: EEP ACK Policy (persists across reboot)
 
 // ─── PID Gain Register Addresses (EEP) ── common to all models
 constexpr uint8_t EEP_ADDR_KP          = 30;   // Position Kp (2 bytes)
@@ -233,8 +237,11 @@ public:
   /// Get servo status error byte
   int stat(uint8_t servo_id);
 
-  /// Set ACK policy (0=no reply, 1=reply to READ only, 2=always reply)
+  /// Set ACK policy for all servos (broadcast) (0=no reply, 1=reply to READ only, 2=always reply)
   bool setACK(int value);
+
+  /// Set ACK policy for a specific servo (0=no reply, 1=reply to READ only, 2=always reply)
+  bool setACK(uint8_t servo_id, int value);
 
   /// Clear error for a servo
   bool clearError(uint8_t servo_id);
