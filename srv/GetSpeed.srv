@@ -1,0 +1,6 @@
+# Get servo current speed
+uint8 servo_id        # Servo ID (0~253)
+---
+bool success
+string message
+int32 speed           # Current speed (-1023 ~ 1023)

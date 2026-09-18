@@ -190,6 +190,14 @@ HerkulexNode::HerkulexNode(const rclcpp::NodeOptions & options)
     "herkulex/get_gain",
     std::bind(&HerkulexNode::onGetGain, this, _1, _2));
 
+  get_speed_srv_ = this->create_service<srv::GetSpeed>(
+    "herkulex/get_speed",
+    std::bind(&HerkulexNode::onGetSpeed, this, _1, _2));
+
+  get_error_srv_ = this->create_service<srv::GetError>(
+    "herkulex/get_error",
+    std::bind(&HerkulexNode::onGetError, this, _1, _2));
+
   RCLCPP_INFO(this->get_logger(), "HerkuleX Driver node ready");
 }
 
@@ -307,6 +315,12 @@ void HerkulexNode::statusTimerCallback()
       servo_msg.speed = sv.speed;
       servo_msg.status_error = sv.status_error;
       servo_msg.status_detail = sv.status_detail;
+
+      // Extended real-time telemetry
+      servo_msg.voltage = sv.voltage;
+      servo_msg.temperature = sv.temperature;
+      servo_msg.pwm = sv.pwm;
+      servo_msg.torque_control = sv.torque_control;
     }
 
     status_msg.servos.push_back(servo_msg);
@@ -579,6 +593,49 @@ void HerkulexNode::onGetGain(
     gains.kp, gains.kd, gains.ki,
     gains.feedforward1, gains.feedforward2,
     gains.velocity_kp, gains.velocity_ki);
+}
+
+void HerkulexNode::onGetSpeed(
+  const std::shared_ptr<srv::GetSpeed::Request> request,
+  std::shared_ptr<srv::GetSpeed::Response> response)
+{
+  if (!serial_ || !serial_->isOpen()) {
+    response->success = false;
+    response->message = "Serial port not open";
+    return;
+  }
+
+  int speed = serial_->getSpeed(request->servo_id);
+  if (speed >= -1023 && speed <= 1023) {
+    response->success = true;
+    response->speed = speed;
+    response->message = "OK";
+  } else {
+    response->success = false;
+    response->message = "Failed to read speed";
+  }
+}
+
+void HerkulexNode::onGetError(
+  const std::shared_ptr<srv::GetError::Request> request,
+  std::shared_ptr<srv::GetError::Response> response)
+{
+  if (!serial_ || !serial_->isOpen()) {
+    response->success = false;
+    response->message = "Serial port not open";
+    return;
+  }
+
+  auto sv = serial_->getServoStatus(request->servo_id);
+  if (sv.position >= 0) {
+    response->success = true;
+    response->status_error = sv.status_error;
+    response->status_detail = sv.status_detail;
+    response->message = "OK";
+  } else {
+    response->success = false;
+    response->message = "Failed to read error status (servo not responding)";
+  }
 }
 
 // ─── Topic Callbacks (Synchronized Multi-Servo Control) ────────

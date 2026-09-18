@@ -141,9 +141,17 @@ constexpr uint8_t LED_WHITE            = 0x07;
 constexpr uint8_t ADDR_ACK_POLICY      = 1;    // 0x01: ACK Policy (0=No reply, 1=Reply to READ only, 2=Always reply)
 constexpr uint8_t ADDR_TORQUE_CONTROL  = 52;   // 0x34
 constexpr uint8_t ADDR_LED_CONTROL     = 53;   // 0x35
+constexpr uint8_t ADDR_VOLTAGE         = 54;   // 0x36: Supply voltage
+constexpr uint8_t ADDR_TEMPERATURE     = 55;   // 0x37: Temperature
 constexpr uint8_t ADDR_STATUS_ERROR    = 48;   // 0x30
 constexpr uint8_t ADDR_CAL_POSITION    = 58;   // 0x3A
-constexpr uint8_t ADDR_SPEED           = 64;   // 0x40
+constexpr uint8_t ADDR_PWM             = 64;   // 0x40: PWM output
+constexpr uint8_t ADDR_SPEED           = 64;   // 0x40 (alias for PWM register)
+
+// Block read: starting address and total byte count for real-time telemetry
+// Reads addr 52~65: TorqueCtrl(1)+LED(1)+Volt(1)+Temp(1)+Mode(1)+Tick(1)+CalPos(2)+AbsPos(2)+DiffPos(2)+PWM(2) = 14 bytes
+constexpr uint8_t ADDR_BLOCK_START     = 52;   // Block read start address
+constexpr uint8_t ADDR_BLOCK_LENGTH    = 14;   // Block read byte count
 
 // EEP addresses
 constexpr uint8_t EEP_ADDR_ACK_POLICY  = 8;    // 0x08: EEP ACK Policy (persists across reboot)
@@ -182,6 +190,12 @@ struct ServoStatus
   int speed = 0;           // -1023~1023
   uint8_t status_error = 0;
   uint8_t status_detail = 0;
+
+  // Extended real-time telemetry (populated by block read)
+  uint8_t voltage = 0;         // Supply voltage (raw)
+  uint8_t temperature = 0;     // Temperature (raw)
+  int pwm = 0;                 // PWM output value
+  uint8_t torque_control = 0;  // Torque state (0x00=Free, 0x40=Brake, 0x60=On)
 };
 
 struct GainValues

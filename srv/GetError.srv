@@ -1,0 +1,7 @@
+# Get servo error status
+uint8 servo_id        # Servo ID (0~253)
+---
+bool success
+string message
+uint8 status_error    # Status error byte (bit flags: 0x01=Voltage, 0x02=Position, 0x04=Temperature, 0x08=Packet, 0x10=Overload, 0x20=Driver, 0x40=EEP)
+uint8 status_detail   # Status detail byte (bit flags: 0x01=Moving, 0x02=InPosition, 0x04=Checksum, 0x08=Unknown, 0x10=ExceedRange, 0x20=Garbage, 0x40=TorqueOn)

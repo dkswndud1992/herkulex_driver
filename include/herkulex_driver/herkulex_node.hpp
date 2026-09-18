@@ -25,6 +25,8 @@
 #include "herkulex_driver/srv/write_registry.hpp"
 #include "herkulex_driver/srv/set_gain.hpp"
 #include "herkulex_driver/srv/get_gain.hpp"
+#include "herkulex_driver/srv/get_speed.hpp"
+#include "herkulex_driver/srv/get_error.hpp"
 
 #include <memory>
 #include <string>
@@ -96,6 +98,14 @@ private:
     const std::shared_ptr<srv::GetGain::Request> request,
     std::shared_ptr<srv::GetGain::Response> response);
 
+  void onGetSpeed(
+    const std::shared_ptr<srv::GetSpeed::Request> request,
+    std::shared_ptr<srv::GetSpeed::Response> response);
+
+  void onGetError(
+    const std::shared_ptr<srv::GetError::Request> request,
+    std::shared_ptr<srv::GetError::Response> response);
+
   // HerkuleX serial communication
   std::unique_ptr<HerkulexSerial> serial_;
 
@@ -136,6 +146,8 @@ private:
   rclcpp::Service<srv::WriteRegistry>::SharedPtr write_registry_srv_;
   rclcpp::Service<srv::SetGain>::SharedPtr set_gain_srv_;
   rclcpp::Service<srv::GetGain>::SharedPtr get_gain_srv_;
+  rclcpp::Service<srv::GetSpeed>::SharedPtr get_speed_srv_;
+  rclcpp::Service<srv::GetError>::SharedPtr get_error_srv_;
 };
 
 }  // namespace herkulex_driver

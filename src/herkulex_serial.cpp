@@ -784,26 +784,40 @@ ServoStatus HerkulexSerial::getServoStatus(uint8_t servo_id)
   status.speed = 0;
   status.status_error = 0;
   status.status_detail = 0;
+  status.voltage = 0;
+  status.temperature = 0;
+  status.pwm = 0;
+  status.torque_control = 0;
 
   std::lock_guard<std::mutex> lock(serial_mutex_);
 
-  // HerkuleX RAM Address 58 (0x3A): Calibrated Position (2 bytes)
-  // RAM_READ response (13 bytes) includes:
-  // [0..1] Header (0xFF, 0xFF)
-  // [2]    Packet Size (13)
-  // [3]    pID
-  // [4]    CMD (0x44)
-  // [5..6] Checksum 1, 2
-  // [7]    Address (58)
-  // [8]    Length (2)
-  // [9]    Calibrated Position LSB
-  // [10]   Calibrated Position MSB
-  // [11]   Status Error byte
-  // [12]   Status Detail byte
-  // By reading Address 58 once, we obtain position, error status, and detail in a single round trip!
+  // Block read RAM addr 52~65 (14 bytes) in a single round-trip
+  // Layout (offset from addr 52):
+  //   [0]  Torque Control   (1 byte)
+  //   [1]  LED Control      (1 byte)
+  //   [2]  Voltage          (1 byte)
+  //   [3]  Temperature      (1 byte)
+  //   [4]  Current Ctrl Mode(1 byte)
+  //   [5]  Tick             (1 byte)
+  //   [6-7]  Calibrated Position (2 bytes, LSB first)
+  //   [8-9]  Absolute Position   (2 bytes)
+  //   [10-11] Differential Position (2 bytes)
+  //   [12-13] PWM / Speed   (2 bytes)
+  //
+  // Response packet (25 bytes):
+  //   [0..1] Header (0xFF 0xFF)
+  //   [2]    Packet Size (25)
+  //   [3]    pID
+  //   [4]    CMD (0x44 = RAM_READ_ACK)
+  //   [5..6] Checksum 1, 2
+  //   [7]    Address (52)
+  //   [8]    Length (14)
+  //   [9..22] Data (14 bytes)
+  //   [23]   Status Error
+  //   [24]   Status Detail
   std::vector<uint8_t> data = {
-    ADDR_CAL_POSITION,    // Address 58 (0x3A)
-    0x02                  // Length = 2 bytes
+    ADDR_BLOCK_START,     // Address 52
+    ADDR_BLOCK_LENGTH     // Length = 14 bytes
   };
 
   if (!sendPacket(servo_id, CMD_RAM_READ, data)) {
@@ -812,16 +826,35 @@ ServoStatus HerkulexSerial::getServoStatus(uint8_t servo_id)
 
   std::this_thread::sleep_for(std::chrono::milliseconds(2));
 
+  // Expected response: 7 (header) + 2 (addr+len) + 14 (data) + 2 (status) = 25 bytes
+  constexpr int BLOCK_RESPONSE_SIZE = MIN_PACKET_SIZE + 2 + ADDR_BLOCK_LENGTH + 2;
   std::vector<uint8_t> response;
-  if (!receivePacket(response, 13, 150)) {
+  if (!receivePacket(response, BLOCK_RESPONSE_SIZE, 150)) {
     return status;
   }
 
+  // Parse data from response (data starts at offset 9)
+  constexpr int DATA_START = 9;
+  status.torque_control = response[DATA_START + 0];   // addr 52
+  // response[DATA_START + 1] = LED Control (skip)
+  status.voltage        = response[DATA_START + 2];   // addr 54
+  status.temperature    = response[DATA_START + 3];   // addr 55
+  // response[DATA_START + 4] = Current Control Mode (skip)
+  // response[DATA_START + 5] = Tick (skip)
+
+  // Calibrated Position (addr 58-59, 2 bytes LSB first)
   auto spec = getModelSpec(getServoModel(servo_id));
-  status.position = ((response[10] & spec.position_mask_msb) << 8) | response[9];
+  status.position = ((response[DATA_START + 7] & spec.position_mask_msb) << 8) | response[DATA_START + 6];
   status.angle = (status.position - spec.center_position) * spec.deg_per_count;
-  status.status_error = response[11];
-  status.status_detail = response[12];
+
+  // PWM / Speed (addr 64-65, 2 bytes LSB first)
+  status.speed = static_cast<int16_t>((response[DATA_START + 13] << 8) | response[DATA_START + 12]);
+  status.pwm = status.speed;
+
+  // Status Error & Detail (trailing 2 bytes after data)
+  constexpr int STATUS_OFFSET = DATA_START + ADDR_BLOCK_LENGTH;
+  status.status_error  = response[STATUS_OFFSET];
+  status.status_detail = response[STATUS_OFFSET + 1];
 
   return status;
 }

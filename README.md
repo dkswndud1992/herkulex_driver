@@ -10,7 +10,7 @@ Dongbu HerkuleX DRS-0101 / DRS-0201 스마트 서보 모터를 위한 ROS2 드�
 - **시리얼 통신**: Linux termios 기반 시리얼 포트 통신 (`/dev/ttyUSB0` 등)
 - **위치 제어**: 서보를 절대 위치(0~1023) 또는 각도(-160°~+160°)로 이동
 - **속도 제어**: 연속 회전 모드로 속도 제어 (-1023~1023)
-- **상태 모니터링**: 주기적으로 서보 상태(위치/속도/에러)를 토픽으로 발행
+- **상태 모니터링**: 주기적으로 서보 상태(위치/속도/전압/온도/토크/에러)를 토픽으로 발행
 - **LED 제어**: 서보 LED 색상 변경
 - **토크 제어**: 토크 ON/OFF
 - **서보 관리**: ID 변경, 재부팅, 에러 클리어, 레지스트리 읽기/쓰기
@@ -100,7 +100,7 @@ ros2 run herkulex_driver herkulex_node \
 
 | 토픽 | 타입 | 설명 |
 |------|------|------|
-| `herkulex/status` | `herkulex_driver/msg/ServoStatusArray` | 서보 상태 (주기적 발행) |
+| `herkulex/status` | `herkulex_driver/msg/ServoStatusArray` | 서보 상태 (위치/각도/속도/전압/온도/PWM/토크/에러, 주기적 발행) |
 | `herkulex/cmd_sync_angle` | `herkulex_driver/msg/SyncAngleCmd` | **다중 서보 실시간 동시 각도 제어** (`CMD_S_JOG`, 타임스탬프 필터링) |
 | `herkulex/cmd_sync_position` | `herkulex_driver/msg/SyncPositionCmd` | **다중 서보 실시간 동시 위치 제어** (`CMD_S_JOG`, 타임스탬프 필터링) |
 
@@ -114,6 +114,8 @@ ros2 run herkulex_driver herkulex_node \
 | `herkulex/set_torque` | `SetTorque` | 토크 ON/OFF |
 | `herkulex/set_led` | `SetLed` | LED 색상 변경 |
 | `herkulex/get_position` | `GetPosition` | 현재 위치 조회 |
+| `herkulex/get_speed` | `GetSpeed` | 현재 속도 조회 |
+| `herkulex/get_error` | `GetError` | 에러 상태 조회 |
 | `herkulex/reboot` | `Reboot` | 서보 재부팅 |
 | `herkulex/clear_error` | `ClearError` | 에러 초기화 |
 | `herkulex/set_id` | `SetID` | 서보 ID 변경 |

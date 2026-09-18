@@ -33,6 +33,8 @@ set(srv_files
   "srv/SetTorque.srv"
   "srv/SetLed.srv"
   "srv/GetPosition.srv"
+  "srv/GetSpeed.srv"
+  "srv/GetError.srv"
   "srv/Reboot.srv"
   "srv/ClearError.srv"
   "srv/SetID.srv"
